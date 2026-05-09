@@ -1,0 +1,169 @@
+from docx import Document
+from docx.shared import Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml.ns import qn
+from math import pow
+
+
+def npv(rate, cfs):
+    return sum(cf / ((1 + rate) ** t) for t, cf in enumerate(cfs))
+
+def irr(cfs, guess=0.1):
+    low, high = -0.9999, 10.0
+    def f(r):
+        return sum(cf / ((1 + r) ** t) for t, cf in enumerate(cfs))
+    fl, fh = f(low), f(high)
+    while fl * fh > 0 and high < 1e6:
+        high *= 2
+        fh = f(high)
+    for _ in range(200):
+        mid = (low + high) / 2
+        fm = f(mid)
+        if abs(fm) < 1e-10:
+            return mid
+        if fl * fm <= 0:
+            high, fh = mid, fm
+        else:
+            low, fl = mid, fm
+    return (low + high) / 2
+
+def simple_pp(cfs):
+    cum = 0
+    for t in range(1, len(cfs)):
+        prev = cum
+        cum += cfs[t]
+        if cum >= -cfs[0]:
+            return (t - 1) + (-cfs[0] - prev) / cfs[t]
+    return None
+
+
+def discounted_pp(cfs, rate):
+    cum = 0
+    for t in range(1, len(cfs)):
+        disc = cfs[t] / ((1 + rate) ** t)
+        prev = cum
+        cum += disc
+        if cum >= -cfs[0]:
+            return (t - 1) + (-cfs[0] - prev) / disc
+    return None
+
+# Task 14.1
+inv1 = 260000 + 40000
+wc1 = 25000
+dep1 = inv1 / 10
+rev1 = 150000
+op1 = 50000
+tax = 0.20
+r1 = 0.10
+ebit1 = rev1 - op1 - dep1
+cf1 = ebit1 * (1 - tax) + dep1
+cfs1 = [-(inv1 + wc1)] + [cf1] * 9 + [cf1 + wc1]
+npv1 = npv(r1, cfs1)
+pi1 = (npv1 + inv1 + wc1) / (inv1 + wc1)
+irr1 = irr(cfs1)
+roi1 = (sum(cfs1[1:]) - (inv1 + wc1)) / (inv1 + wc1) * 100
+pp1 = simple_pp(cfs1)
+
+# Task 14.2
+inv2 = 200000 + 20000 + 30000
+wc2 = 25000
+dep2 = inv2 / 5
+rev2 = 200000
+var2 = 60000
+fix2 = 20000
+r2 = 0.12
+ebit2 = rev2 - var2 - fix2 - dep2
+cf2 = ebit2 * (1 - tax) + dep2
+salvage2 = 25000
+after_salvage2 = salvage2 * (1 - tax)
+cfs2 = [-(inv2 + wc2)] + [cf2] * 4 + [cf2 + after_salvage2 + wc2]
+npv2 = npv(r2, cfs2)
+pi2 = (npv2 + inv2 + wc2) / (inv2 + wc2)
+irr2 = irr(cfs2)
+roi2 = (sum(cfs2[1:]) - (inv2 + wc2)) / (inv2 + wc2) * 100
+pp2 = simple_pp(cfs2)
+
+# Task 14.3
+inv3 = 600000
+wc3 = 150000
+recovery3 = 125000
+promo3 = 50000
+rev3 = 400000
+var3 = 90000
+fix3 = 50000
+r3 = 0.12
+dep3 = inv3 / 10
+ebit3 = rev3 - var3 - fix3 - dep3
+cf3 = ebit3 * (1 - tax) + dep3
+cfs3 = [-(inv3 + wc3 + promo3)] + [cf3] * 9 + [cf3 + recovery3]
+npv3 = npv(r3, cfs3)
+pi3 = (npv3 + inv3 + wc3 + promo3) / (inv3 + wc3 + promo3)
+irr3 = irr(cfs3)
+roi3 = (sum(cfs3[1:]) - (inv3 + wc3 + promo3)) / (inv3 + wc3 + promo3) * 100
+pp3 = simple_pp(cfs3)
+
+
+def fmt(x):
+    return f'{x:,.2f}'.replace(',', ' ').replace('.', ',')
+
+
+doc = Document()
+style = doc.styles['Normal']
+style.font.name = 'Times New Roman'
+style._element.rPr.rFonts.set(qn('w:eastAsia'), 'Times New Roman')
+style.font.size = Pt(12)
+
+p = doc.add_paragraph()
+p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+run = p.add_run('Решение задач по теме «Оценка экономической эффективности инвестиционных проектов в реальные активы»')
+run.bold = True
+run.font.size = Pt(14)
+
+for title, data in [
+    ('Задача 14.1', [
+        f'Первоначальные инвестиции: {fmt(inv1 + wc1)} руб.',
+        f'Амортизация: {fmt(dep1)} руб./год.',
+        f'Годовой денежный поток: {fmt(cf1)} руб.',
+        f'NPV = {fmt(npv1)} руб.',
+        f'PI = {pi1:.4f}',
+        f'IRR = {irr1*100:.2f}%',
+        f'ROI = {roi1:.2f}%',
+        f'PP = {pp1:.2f} лет.'
+    ]),
+    ('Задача 14.2', [
+        f'Первоначальные инвестиции: {fmt(inv2 + wc2)} руб.',
+        f'Амортизация: {fmt(dep2)} руб./год.',
+        f'Годовой денежный поток: {fmt(cf2)} руб.',
+        f'NPV = {fmt(npv2)} руб.',
+        f'PI = {pi2:.4f}',
+        f'IRR = {irr2*100:.2f}%',
+        f'ROI = {roi2:.2f}%',
+        f'PP = {pp2:.2f} лет.'
+    ]),
+    ('Задача 14.3', [
+        f'Первоначальные инвестиции: {fmt(inv3 + wc3 + promo3)} руб.',
+        f'Амортизация: {fmt(dep3)} руб./год.',
+        f'Годовой денежный поток: {fmt(cf3)} руб.',
+        f'NPV = {fmt(npv3)} руб.',
+        f'PI = {pi3:.4f}',
+        f'IRR = {irr3*100:.2f}%',
+        f'ROI = {roi3:.2f}%',
+        f'PP = {pp3:.2f} лет.'
+    ])
+]:
+    h = doc.add_paragraph()
+    h.style = doc.styles['Normal']
+    r = h.add_run(title)
+    r.bold = True
+    r.font.size = Pt(13)
+    for line in data:
+        doc.add_paragraph(line, style='Normal')
+
+path = 'output/reshenie_zadach_14_1_14_3.docx'
+doc.save(path)
+print(path)
+print({
+    '14.1': {'NPV': round(npv1,2), 'PI': round(pi1,4), 'IRR%': round(irr1*100,2), 'ROI%': round(roi1,2), 'PP': round(pp1,2)},
+    '14.2': {'NPV': round(npv2,2), 'PI': round(pi2,4), 'IRR%': round(irr2*100,2), 'ROI%': round(roi2,2), 'PP': round(pp2,2)},
+    '14.3': {'NPV': round(npv3,2), 'PI': round(pi3,4), 'IRR%': round(irr3*100,2), 'ROI%': round(roi3,2), 'PP': round(pp3,2)}
+})
